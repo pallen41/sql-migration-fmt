@@ -89,11 +89,14 @@ in this version:
 
 - content inside block comments and string literals is left exactly as
   written, including internal line breaks
-- there's no parenthesis-spacing distinction yet between grouping and
-  function calls, so `COUNT (*)` and `WHERE (a = 1)` are spaced the same
 - dollar-quoted strings (`$$ ... $$`) and dialect-specific quoting like
   backtick identifiers aren't recognized
 - blank lines inside a statement are collapsed rather than preserved
+- function calls like `count(*)` are spaced apart from declared-object
+  parens like `CREATE TABLE t (...)` by checking the keyword immediately
+  before the name (`TABLE`, `INTO`, `ON`, and similar); if a line break
+  falls between that keyword and the name, the check loses that context
+  and may guess wrong
 
 ## License
 

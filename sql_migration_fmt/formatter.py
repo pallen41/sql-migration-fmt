@@ -27,9 +27,35 @@ KEYWORDS = frozenset(
     """.split()
 )
 
-NO_SPACE_BEFORE = {",", ";", "."}
+NO_SPACE_BEFORE = {",", ";", ".", ")"}
 NO_SPACE_AFTER = {"(", "."}
 NON_CODE_KINDS = {"ws", "nl", "comment_line", "comment_block"}
+
+# A "(" only opens a function call - and so should hug the token before it -
+# when that token is an identifier being called. Anything else (a keyword
+# like WHERE/IN/VALUES, an operator, another paren) is grouping or clause
+# syntax, which keeps its usual leading space.
+CALL_PAREN_KINDS = {"word", "quoted_ident"}
+
+# Bare identifiers also precede a "(" when they're a declared object name
+# rather than a function being called - CREATE TABLE users (...), INSERT
+# INTO t (...), CREATE INDEX ON t (...). Walking back from the identifier
+# over any keyword chain (e.g. "IF NOT EXISTS") to one of these keeps those
+# column/definition lists spaced like grouping parens instead.
+OBJECT_NAME_KEYWORDS = frozenset(
+    {"TABLE", "INTO", "ON", "VIEW", "INDEX", "COLUMN", "CONSTRAINT", "TRIGGER", "REFERENCES"}
+)
+
+
+def _is_function_call_paren(kinds: List[str], texts: List[str], i: int) -> bool:
+    if kinds[i - 1] not in CALL_PAREN_KINDS:
+        return False
+    j = i - 2
+    while j >= 0 and kinds[j] == "keyword":
+        if texts[j] in OBJECT_NAME_KEYWORDS:
+            return False
+        j -= 1
+    return True
 
 
 def format_sql(source: str, *, lenient: bool = False) -> str:
@@ -131,11 +157,14 @@ def _render_statement(tokens: List[Token]) -> str:
 
 def _render_line(content: List[Token]) -> str:
     texts = []
+    kinds = []
     for t in content:
         if t.kind == "word" and t.text.upper() in KEYWORDS:
             texts.append(t.text.upper())
+            kinds.append("keyword")
         else:
             texts.append(t.text)
+            kinds.append(t.kind)
 
     pieces = []
     for i, text in enumerate(texts):
@@ -143,7 +172,10 @@ def _render_line(content: List[Token]) -> str:
             pieces.append(text)
             continue
         prev_text = texts[i - 1]
-        needs_space = not (text in NO_SPACE_BEFORE or prev_text in NO_SPACE_AFTER)
+        if text == "(" and _is_function_call_paren(kinds, texts, i):
+            needs_space = False
+        else:
+            needs_space = not (text in NO_SPACE_BEFORE or prev_text in NO_SPACE_AFTER)
         if needs_space:
             pieces.append(" ")
         pieces.append(text)
