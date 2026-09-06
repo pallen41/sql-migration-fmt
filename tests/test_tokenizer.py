@@ -34,6 +34,18 @@ class RoundTripTest(unittest.TestCase):
     def test_empty_source(self):
         self.check("")
 
+    def test_dollar_quoted_function_body(self):
+        self.check(
+            "CREATE FUNCTION f() RETURNS int AS $$\n"
+            "BEGIN\n"
+            "  RETURN 1;\n"
+            "END;\n"
+            "$$ LANGUAGE plpgsql;\n"
+        )
+
+    def test_backtick_identifier(self):
+        self.check("SELECT `col` FROM `my table`;")
+
 
 class WhitespaceAndNewlineTest(unittest.TestCase):
     def test_empty_source_has_no_tokens(self):
@@ -111,6 +123,60 @@ class QuotedIdentifierTest(unittest.TestCase):
     def test_unterminated_quoted_identifier_raises(self):
         with self.assertRaises(FormatError):
             tokenize('"abc')
+
+
+class DollarQuotedStringTest(unittest.TestCase):
+    def test_bare_double_dollar(self):
+        tokens = tokenize("$$hello world$$")
+        self.assertEqual(kinds(tokens), ["string"])
+        self.assertEqual(tokens[0].text, "$$hello world$$")
+
+    def test_tagged_dollar_quote(self):
+        tokens = tokenize("$body$select 1;$body$")
+        self.assertEqual(kinds(tokens), ["string"])
+        self.assertEqual(tokens[0].text, "$body$select 1;$body$")
+
+    def test_single_quote_inside_dollar_quote_is_not_special(self):
+        tokens = tokenize("$$it's fine$$")
+        self.assertEqual(kinds(tokens), ["string"])
+        self.assertEqual(tokens[0].text, "$$it's fine$$")
+
+    def test_mismatched_tag_does_not_close_early(self):
+        tokens = tokenize("$a$ $$ still inside $a$")
+        self.assertEqual(kinds(tokens), ["string"])
+        self.assertEqual(tokens[0].text, "$a$ $$ still inside $a$")
+
+    def test_dollar_quote_spanning_lines_updates_line_counter(self):
+        tokens = tokenize("$$a\nb$$ x")
+        self.assertEqual(tokens[0].kind, "string")
+        self.assertEqual(tokens[0].line, 1)
+        word = [t for t in tokens if t.kind == "word"][0]
+        self.assertEqual(word.line, 2)
+
+    def test_unterminated_dollar_quote_raises(self):
+        with self.assertRaises(FormatError):
+            tokenize("$$never closes")
+
+    def test_bare_dollar_sign_is_punct(self):
+        tokens = tokenize("$1")
+        self.assertEqual(kinds(tokens), ["punct", "number"])
+        self.assertEqual(texts(tokens), ["$", "1"])
+
+
+class BacktickIdentifierTest(unittest.TestCase):
+    def test_simple_backtick_identifier(self):
+        tokens = tokenize("`my table`")
+        self.assertEqual(kinds(tokens), ["quoted_ident"])
+        self.assertEqual(tokens[0].text, "`my table`")
+
+    def test_doubled_backtick_is_escape_not_terminator(self):
+        tokens = tokenize("`a``b`")
+        self.assertEqual(kinds(tokens), ["quoted_ident"])
+        self.assertEqual(tokens[0].text, "`a``b`")
+
+    def test_unterminated_backtick_identifier_raises(self):
+        with self.assertRaises(FormatError):
+            tokenize("`abc")
 
 
 class WordAndNumberTest(unittest.TestCase):

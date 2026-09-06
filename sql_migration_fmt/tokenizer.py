@@ -7,9 +7,16 @@ identifiers, punctuation) is handed back as-is for the formatter to
 interpret.
 """
 
+import re
 from typing import List, NamedTuple
 
 TWO_CHAR_PUNCT = {"<=", ">=", "<>", "!=", "||"}
+
+# Matches the opening (and, later, closing) delimiter of a dollar-quoted
+# string: $$ or $tag$, where tag follows regular identifier rules. A bare
+# "$" or a "$" followed by digits with no matching close (a positional
+# parameter like $1) simply won't match and falls through to plain punct.
+DOLLAR_TAG_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)?\$")
 
 
 class FormatError(Exception):
@@ -79,6 +86,43 @@ def tokenize(source: str) -> List[Token]:
                     line += 1
                 i += 1
             tokens.append(Token("string", source[start:i], start_line))
+            continue
+
+        if c == "$":
+            match = DOLLAR_TAG_RE.match(source, i)
+            if match:
+                start = i
+                start_line = line
+                tag = match.group(0)
+                end = source.find(tag, match.end())
+                if end == -1:
+                    raise FormatError(f"line {start_line}: unterminated dollar-quoted string")
+                end += len(tag)
+                line += source.count("\n", i, end)
+                i = end
+                tokens.append(Token("string", source[start:i], start_line))
+                continue
+            tokens.append(Token("punct", c, line))
+            i += 1
+            continue
+
+        if c == "`":
+            start = i
+            start_line = line
+            i += 1
+            while True:
+                if i >= n:
+                    raise FormatError(f"line {start_line}: unterminated backtick-quoted identifier")
+                if source[i] == "`":
+                    if source[i : i + 2] == "``":
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                if source[i] == "\n":
+                    line += 1
+                i += 1
+            tokens.append(Token("quoted_ident", source[start:i], start_line))
             continue
 
         if c == '"':

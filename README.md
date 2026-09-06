@@ -81,16 +81,17 @@ CREATE TABLE users (
 
 ## Scope and limitations
 
-This is a formatter, not a SQL parser. It tokenizes strings, quoted
-identifiers, line comments, and block comments correctly so it never
-reformats their contents, but it does not understand statement grammar
-beyond parenthesis nesting and semicolon boundaries. Known limitations
-in this version:
+This is a formatter, not a SQL parser. It tokenizes strings (including
+dollar-quoted strings), quoted identifiers (double-quoted or
+backtick-quoted), line comments, and block comments correctly so it
+never reformats their contents, but it does not understand statement
+grammar beyond parenthesis nesting and semicolon boundaries. Known
+limitations in this version:
 
-- content inside block comments and string literals is left exactly as
-  written, including internal line breaks
-- dollar-quoted strings (`$$ ... $$`) and dialect-specific quoting like
-  backtick identifiers aren't recognized
+- content inside block comments, string literals, and dollar-quoted
+  strings is left exactly as written, including internal line breaks -
+  this is what makes `CREATE FUNCTION ... AS $$ ... $$` bodies safe to
+  pass through untouched
 - blank lines inside a statement are collapsed rather than preserved
 - function calls like `count(*)` are spaced apart from declared-object
   parens like `CREATE TABLE t (...)` by checking the keyword immediately

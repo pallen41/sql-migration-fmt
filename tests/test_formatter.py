@@ -58,6 +58,18 @@ class ParenSpacingTest(unittest.TestCase):
         self.assertEqual(out, "INSERT INTO t (a, b) VALUES (1, 2);\n")
 
 
+class DialectQuotingTest(unittest.TestCase):
+    def test_dollar_quoted_body_is_left_untouched(self):
+        out = format_sql("create function f() returns int as $$select 1$$ language sql;")
+        self.assertEqual(
+            out, "CREATE FUNCTION f() RETURNS INT AS $$select 1$$ LANGUAGE sql;\n"
+        )
+
+    def test_backtick_identifier_as_function_name_hugs_paren(self):
+        out = format_sql("select `myFunc`(a) from t;")
+        self.assertEqual(out, "SELECT `myFunc`(a) FROM t;\n")
+
+
 class StatementSplittingTest(unittest.TestCase):
     def test_semicolon_inside_parens_does_not_split_statement(self):
         out = format_sql("create table t (a int);")
