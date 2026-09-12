@@ -92,7 +92,10 @@ limitations in this version:
   strings is left exactly as written, including internal line breaks -
   this is what makes `CREATE FUNCTION ... AS $$ ... $$` bodies safe to
   pass through untouched
-- blank lines inside a statement are collapsed rather than preserved
+- a single blank line inside a statement is kept as-is (useful for
+  separating column definitions from constraints in a `CREATE TABLE`);
+  runs of two or more are squashed to one, and blank lines at the very
+  start or end of a statement are dropped
 - function calls like `count(*)` are spaced apart from declared-object
   parens like `CREATE TABLE t (...)` by checking the keyword immediately
   before the name (`TABLE`, `INTO`, `ON`, and similar); if a line break

@@ -80,6 +80,53 @@ class StatementSplittingTest(unittest.TestCase):
         self.assertEqual(out, "SELECT 1;\n\nSELECT 2;\n")
 
 
+class BlankLineTest(unittest.TestCase):
+    """A blank line an author left inside a statement is a deliberate grouping
+    hint (e.g. separating columns from constraints), so it survives - but
+    only one at a time, and never at the statement's own edges.
+    """
+
+    def test_single_blank_line_between_columns_is_preserved(self):
+        out = format_sql(
+            "create table t (\n"
+            "    id serial primary key,\n"
+            "\n"
+            "    email text not null\n"
+            ");\n"
+        )
+        self.assertEqual(
+            out,
+            "CREATE TABLE t (\n"
+            "    id SERIAL PRIMARY KEY,\n"
+            "\n"
+            "    email TEXT NOT NULL\n"
+            ");\n",
+        )
+
+    def test_multiple_consecutive_blank_lines_collapse_to_one(self):
+        out = format_sql(
+            "create table t (\n"
+            "    id serial primary key,\n"
+            "\n"
+            "\n"
+            "\n"
+            "    email text not null\n"
+            ");\n"
+        )
+        self.assertEqual(
+            out,
+            "CREATE TABLE t (\n"
+            "    id SERIAL PRIMARY KEY,\n"
+            "\n"
+            "    email TEXT NOT NULL\n"
+            ");\n",
+        )
+
+    def test_leading_and_trailing_blank_lines_are_dropped(self):
+        out = format_sql("\n\nselect 1;\n\n")
+        self.assertEqual(out, "SELECT 1;\n")
+
+
 class StrictModeTest(unittest.TestCase):
     def test_tabs_rejected_without_lenient(self):
         with self.assertRaises(FormatError):

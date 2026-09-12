@@ -110,6 +110,34 @@ def _is_blank_line(line: List[Token]) -> bool:
     return all(t.kind == "ws" for t in line)
 
 
+def _collapse_blank_lines(lines: List[List[Token]]) -> List[List[Token]]:
+    """Drop leading/trailing blank lines and squash interior runs to one.
+
+    A blank line the author left between two clauses is usually there on
+    purpose (separating column defs from constraints, say), so it's kept -
+    but only one of them, and never at the edges of the statement, since
+    that spacing is already handled by the blank line _render_statement's
+    caller puts between statements.
+    """
+    start = 0
+    end = len(lines)
+    while start < end and _is_blank_line(lines[start]):
+        start += 1
+    while end > start and _is_blank_line(lines[end - 1]):
+        end -= 1
+    lines = lines[start:end]
+
+    result: List[List[Token]] = []
+    prev_blank = False
+    for ln in lines:
+        blank = _is_blank_line(ln)
+        if blank and prev_blank:
+            continue
+        result.append(ln)
+        prev_blank = blank
+    return result
+
+
 def _render_statement(tokens: List[Token]) -> str:
     lines: List[List[Token]] = []
     current: List[Token] = []
@@ -120,7 +148,7 @@ def _render_statement(tokens: List[Token]) -> str:
         else:
             current.append(tok)
     lines.append(current)
-    lines = [ln for ln in lines if not _is_blank_line(ln)]
+    lines = _collapse_blank_lines(lines)
     if not lines:
         return ""
 
@@ -128,10 +156,11 @@ def _render_statement(tokens: List[Token]) -> str:
     out_lines = []
     has_code = False
     for line in lines:
-        content = [t for t in line if t.kind != "ws"]
-        if not content:
+        if _is_blank_line(line):
+            out_lines.append("")
             continue
 
+        content = [t for t in line if t.kind != "ws"]
         leading_close = 0
         for t in content:
             if t.kind == "punct" and t.text == ")":
