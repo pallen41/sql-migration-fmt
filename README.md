@@ -79,6 +79,28 @@ CREATE TABLE users (
 );
 ```
 
+## Custom keyword casing
+
+By default every recognized keyword is uppercased. If a team writes SQL
+lowercase, or uses dialect-specific words the built-in keyword list
+doesn't know about, drop a `.sql-migration-fmt.cfg` file next to the
+migrations (or in any parent directory - the search walks upward from
+each input file, the same way `.gitignore` discovery works):
+
+```ini
+[keywords]
+select = select
+from = from
+jsonb_path = JSONB_PATH
+```
+
+Each line maps a word, matched case-insensitively, to the exact text it
+should be rendered as. This both overrides built-in keywords (`select`,
+`from`) and adds words the formatter otherwise treats as plain
+identifiers (`jsonb_path`) - either way, the word is also treated as a
+keyword for paren-spacing purposes. Pass `--config PATH` to use a
+specific file instead of searching for one.
+
 ## Scope and limitations
 
 This is a formatter, not a SQL parser. It tokenizes strings (including

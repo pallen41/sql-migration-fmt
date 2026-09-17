@@ -6,7 +6,7 @@ an error rather than silently "fixed" in a way the author might not want.
 Pass lenient=True to auto-fix those cases instead.
 """
 
-from typing import List
+from typing import Dict, List, Optional
 
 from .tokenizer import FormatError, Token, tokenize
 
@@ -52,13 +52,26 @@ def _is_function_call_paren(kinds: List[str], texts: List[str], i: int) -> bool:
         return False
     j = i - 2
     while j >= 0 and kinds[j] == "keyword":
-        if texts[j] in OBJECT_NAME_KEYWORDS:
+        if texts[j].upper() in OBJECT_NAME_KEYWORDS:
             return False
         j -= 1
     return True
 
 
-def format_sql(source: str, *, lenient: bool = False) -> str:
+def format_sql(
+    source: str,
+    *,
+    lenient: bool = False,
+    keyword_case: Optional[Dict[str, str]] = None,
+) -> str:
+    """Reformat `source`.
+
+    `keyword_case` is an optional map from an uppercased word (e.g.
+    "SELECT") to the exact text it should be rendered as. It can override
+    the casing of a built-in keyword or add a dialect-specific word the
+    built-in list doesn't know about; either way, the word starts being
+    treated as a keyword for spacing purposes too.
+    """
     if "\t" in source and not lenient:
         raise FormatError("tabs found; rerun with --lenient to expand them, or replace with spaces")
     if "\r" in source:
@@ -78,7 +91,11 @@ def format_sql(source: str, *, lenient: bool = False) -> str:
     elif any(t.kind in ("comment_line", "comment_block") for t in leftover):
         statements.append(leftover)
 
-    blocks = [rendered for rendered in (_render_statement(s) for s in statements) if rendered]
+    blocks = [
+        rendered
+        for rendered in (_render_statement(s, keyword_case) for s in statements)
+        if rendered
+    ]
     if not blocks:
         return ""
     return "\n\n".join(blocks) + "\n"
@@ -138,7 +155,7 @@ def _collapse_blank_lines(lines: List[List[Token]]) -> List[List[Token]]:
     return result
 
 
-def _render_statement(tokens: List[Token]) -> str:
+def _render_statement(tokens: List[Token], keyword_case: Optional[Dict[str, str]] = None) -> str:
     lines: List[List[Token]] = []
     current: List[Token] = []
     for tok in tokens:
@@ -169,7 +186,7 @@ def _render_statement(tokens: List[Token]) -> str:
                 break
 
         indent = max(0, depth - leading_close)
-        out_lines.append(INDENT * indent + _render_line(content))
+        out_lines.append(INDENT * indent + _render_line(content, keyword_case))
 
         for t in content:
             if t.kind not in NON_CODE_KINDS:
@@ -184,12 +201,17 @@ def _render_statement(tokens: List[Token]) -> str:
     return body + (";" if has_code else "")
 
 
-def _render_line(content: List[Token]) -> str:
+def _render_line(content: List[Token], keyword_case: Optional[Dict[str, str]] = None) -> str:
+    overrides = keyword_case or {}
     texts = []
     kinds = []
     for t in content:
-        if t.kind == "word" and t.text.upper() in KEYWORDS:
-            texts.append(t.text.upper())
+        upper = t.text.upper()
+        if t.kind == "word" and upper in overrides:
+            texts.append(overrides[upper])
+            kinds.append("keyword")
+        elif t.kind == "word" and upper in KEYWORDS:
+            texts.append(upper)
             kinds.append("keyword")
         else:
             texts.append(t.text)
