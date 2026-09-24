@@ -1,0 +1,12 @@
+- id: sql-migration-fmt
+  name: sql-migration-fmt
+  description: Reformat SQL migration files (keyword case, indentation, semicolons).
+  entry: sql-migration-fmt
+  language: python
+  files: \.sql$
+- id: sql-migration-fmt-check
+  name: sql-migration-fmt --check
+  description: Fail if a SQL migration file isn't already formatted.
+  entry: sql-migration-fmt --check
+  language: python
+  files: \.sql$

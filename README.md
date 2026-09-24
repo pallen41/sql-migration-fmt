@@ -79,6 +79,34 @@ CREATE TABLE users (
 );
 ```
 
+## Pre-commit hook
+
+This repo ships a `.pre-commit-hooks.yaml`, so it can be used with the
+[pre-commit](https://pre-commit.com) framework instead of remembering to
+run the formatter yourself. Add it to a project's
+`.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/pallen41/sql-migration-fmt
+    rev: v0.1.0
+    hooks:
+      - id: sql-migration-fmt
+```
+
+That hook formats staged `.sql` files in place and re-stages them, the
+same way hooks like `black` do. Use `sql-migration-fmt-check` instead if
+a repo wants commits rejected rather than auto-fixed:
+
+```yaml
+      - id: sql-migration-fmt-check
+```
+
+Neither hook passes `--lenient`, so a file with a tab, CRLF line ending,
+or missing trailing semicolon still fails the commit instead of being
+silently rewritten - add `args: [--lenient]` to the hook entry if that's
+not the behavior a project wants.
+
 ## Custom keyword casing
 
 By default every recognized keyword is uppercased. If a team writes SQL
