@@ -2,7 +2,7 @@ import argparse
 import pathlib
 import sys
 
-from . import config
+from . import config, hook
 from .formatter import format_sql
 from .tokenizer import FormatError
 
@@ -35,7 +35,39 @@ def main(argv=None) -> int:
         f"from each input file (or the current directory, for stdin) for a "
         f"{config.CONFIG_FILENAME} file.",
     )
+    parser.add_argument(
+        "--staged",
+        action="store_true",
+        help="Also process the .sql files staged in the current git repository.",
+    )
+    parser.add_argument(
+        "--install-hook",
+        action="store_true",
+        help="Install a git pre-commit hook that runs --check on staged .sql files.",
+    )
+    parser.add_argument(
+        "--uninstall-hook",
+        action="store_true",
+        help="Remove the pre-commit hook installed by --install-hook.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="With --install-hook, replace an existing pre-commit hook.",
+    )
     args = parser.parse_args(argv)
+
+    if args.install_hook or args.uninstall_hook:
+        return _manage_hook(args)
+
+    if args.staged:
+        try:
+            args.files = list(args.files) + hook.staged_sql_files()
+        except hook.HookError as exc:
+            print(f"sql-migration-fmt: {exc}", file=sys.stderr)
+            return 1
+        if not args.files:
+            return 0
 
     if args.config:
         try:
@@ -81,6 +113,24 @@ def main(argv=None) -> int:
             print(f"{path}: formatted")
 
     return exit_code
+
+
+def _manage_hook(args) -> int:
+    if args.install_hook and args.uninstall_hook:
+        print("sql-migration-fmt: choose one of --install-hook or --uninstall-hook", file=sys.stderr)
+        return 2
+    try:
+        directory = hook.hooks_dir()
+        if args.install_hook:
+            print(f"installed {hook.install(directory, force=args.force)}")
+        elif hook.uninstall(directory):
+            print(f"removed {directory / 'pre-commit'}")
+        else:
+            print("no pre-commit hook to remove")
+    except (hook.HookError, OSError) as exc:
+        print(f"sql-migration-fmt: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def _run_stdin(lenient: bool, check: bool, keyword_case=None) -> int:

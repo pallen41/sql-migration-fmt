@@ -107,6 +107,25 @@ or missing trailing semicolon still fails the commit instead of being
 silently rewritten - add `args: [--lenient]` to the hook entry if that's
 not the behavior a project wants.
 
+### Plain git hook
+
+For repos that don't use the pre-commit framework, the tool can install
+its own hook:
+
+```
+sql-migration-fmt --install-hook
+```
+
+The hook runs `sql-migration-fmt --check` on the `.sql` files staged for
+the commit and rejects the commit if any need reformatting; it never
+rewrites files itself. It records the Python interpreter that installed
+it, so reinstall after moving or recreating a virtualenv. Installation
+respects `core.hooksPath`, refuses to overwrite a pre-commit hook it
+didn't write unless you pass `--force`, and `--uninstall-hook` removes
+it again. `--staged` is also available on its own to add the staged
+`.sql` files to whatever else is on the command line. Note that `--check`
+reads the working-tree copy of a file, so unstaged edits are checked too.
+
 ## Custom keyword casing
 
 By default every recognized keyword is uppercased. If a team writes SQL
